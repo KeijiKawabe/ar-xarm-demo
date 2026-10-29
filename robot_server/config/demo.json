@@ -1,0 +1,41 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5000,
+    "protocol_version": "1.0",
+    "mode": "simulation",
+    "log_file": "../logs/xarm_demo.log"
+  },
+  "robot": {
+    "ip": "192.168.1.100",
+    "model": "xArm7",
+    "is_radian": false,
+    "default_speed_mm_s": 80,
+    "approach_speed_mm_s": 30,
+    "acceleration_mm_s2": 100,
+    "timeout_s": 15,
+    "simulation_delay_s": 0.05
+  },
+  "gripper": {
+    "type": "standard",
+    "open_position": 0,
+    "close_position": 600,
+    "speed": 100
+  },
+  "coordinates": {
+    "HOME": [300, 0, 350, 180, 0, 0],
+    "PICK_APPROACH": [420, 0, 180, 180, 0, 0],
+    "PICK": [420, 0, 95, 180, 0, 0],
+    "MOVE_A": [360, 80, 220, 180, 0, 0],
+    "MOVE_B": [300, 160, 240, 180, 0, 0],
+    "MOVE_C": [180, 160, 220, 180, 0, 0],
+    "PLACE": [180, 160, 105, 180, 0, 0],
+    "PLACE_RETRACT": [180, 160, 230, 180, 0, 0]
+  },
+  "limits": {
+    "x_mm": [100, 600],
+    "y_mm": [-350, 350],
+    "z_mm": [50, 500],
+    "max_speed_mm_s": 100
+  }
+}

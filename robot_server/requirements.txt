@@ -1,0 +1,2 @@
+# Required only for real xArm operation. Simulation and tests use Python stdlib only.
+xarm-python-sdk==1.17.0
