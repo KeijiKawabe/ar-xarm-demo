@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 from typing import Any, Dict
 
@@ -34,6 +35,8 @@ def validate_config(config: Dict[str, Any]) -> None:
 
 
 def validate_pose(pose: list[float], limits: Dict[str, Any]) -> None:
+    if len(pose) != 6 or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in pose):
+        raise ConfigError("invalid_pose_values")
     for value, axis in zip(pose[:3], ("x_mm", "y_mm", "z_mm")):
         low, high = limits[axis]
         if not low <= value <= high:

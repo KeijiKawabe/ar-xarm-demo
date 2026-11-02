@@ -12,10 +12,15 @@ class SimRobotAdapter:
         self.gripper = "OPEN"
 
     def prepare(self) -> None:
+        self._stop.clear()
         self.state = "READY"
 
+    def get_pose(self) -> list[float]:
+        return list(self.current_pose)
+
     def move_pose(self, pose: list[float], speed: float, acceleration: float, timeout: float) -> None:
-        self._stop.clear()
+        if self._stop.is_set():
+            raise RuntimeError("stopped")
         delay = float(self.config["robot"].get("simulation_delay_s", 0.05))
         started = time.monotonic()
         while time.monotonic() - started < delay:
@@ -24,6 +29,8 @@ class SimRobotAdapter:
             time.sleep(0.01)
             if time.monotonic() - started > timeout:
                 raise TimeoutError("motion_timeout")
+        if self._stop.is_set():
+            raise RuntimeError("stopped")
         self.current_pose = list(pose)
 
     def open_gripper(self) -> None:

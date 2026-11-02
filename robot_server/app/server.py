@@ -11,7 +11,8 @@ from .motion_sequence import MotionSequence
 from .protocol import ProtocolError, decode_line, encode, event, response
 from .safety import validate_motion_config
 from .sim_adapter import SimRobotAdapter
-from .state_machine import DemoState, StateMachine
+from .state_machine import AXIS_COMMANDS, DemoState, StateMachine
+from .config_loader import ConfigError
 from .xarm_adapter import XArmAdapter
 
 
@@ -26,12 +27,16 @@ class DemoServer:
         self.client: Optional[socket.socket] = None
         self.client_lock = threading.Lock()
         self.motion_lock = threading.Lock()
+        self.state_lock = threading.RLock()
+        self.seen_requests = set()
+        self.worker = None
         self.active_motion = False
         self.stop_requested = threading.Event()
         self.stop_event = threading.Event()
         mode = config["server"].get("mode", "simulation")
         self.adapter = SimRobotAdapter(config) if mode == "simulation" else XArmAdapter(config)
         self.sequence = MotionSequence(config, self.adapter, self._notify)
+        self.sequence.cancelled = self.stop_requested.is_set
 
     def serve(self) -> None:
         host = self.config["server"].get("host", "0.0.0.0")
@@ -54,13 +59,16 @@ class DemoServer:
                     self.client = client
                 LOG.info("client connected: %s", address)
                 self._client_loop(client)
+                client.close()
                 with self.client_lock:
                     self.client = None
                 if self.machine.state not in (DemoState.FAULT, DemoState.STOPPED):
                     self.machine.state = DemoState.CONNECTED
 
     def _client_loop(self, client: socket.socket) -> None:
-        self.machine.connect()
+        with self.state_lock:
+            self.machine.connect()
+            self.seen_requests.clear()
         client.settimeout(1.0)
         buffer = b""
         try:
@@ -79,10 +87,17 @@ class DemoServer:
         except (ConnectionError, OSError):
             LOG.exception("client connection failed")
         finally:
-            if self.active_motion:
-                self.adapter.stop()
+            with self.state_lock:
+                if self.active_motion or self.machine.state not in (DemoState.READY, DemoState.CONNECTED, DemoState.DISCONNECTED):
+                    self.stop_requested.set()
+                    self.machine.stopped()
+                    self.adapter.stop()
 
     def _handle_line(self, line: bytes) -> None:
+        with self.state_lock:
+            self._handle_line_locked(line)
+
+    def _handle_line_locked(self, line: bytes) -> None:
         try:
             message = decode_line(line)
         except ProtocolError as exc:
@@ -101,6 +116,10 @@ class DemoServer:
         if command == "HEARTBEAT":
             self._send(response(request_id, True, self.machine.state.value, event="HEARTBEAT_ACK"))
             return
+        if request_id in self.seen_requests:
+            self._send(response(request_id, False, self.machine.state.value, code="DUPLICATE_REQUEST", message="request_already_processed"))
+            return
+        self.seen_requests.add(request_id)
         if command == "STOP":
             if self.active_motion:
                 self.stop_requested.set()
@@ -124,47 +143,60 @@ class DemoServer:
         if self.active_motion:
             self._send(response(request_id, False, self.machine.state.value, code="BUSY", message="motion_in_progress"))
             return
+        target = None
+        if command in AXIS_COMMANDS and self.machine.expected(command):
+            try:
+                target = self.sequence.axis_target(command)
+            except ConfigError as exc:
+                self._send(response(request_id, False, self.machine.state.value, code="OUT_OF_RANGE", message=str(exc), recoverable=True))
+                return
+            except Exception as exc:
+                self.machine.fault()
+                self._send(response(request_id, False, self.machine.state.value, code="POSE_READ_FAILED", message=str(exc)))
+                return
         try:
             self.machine.begin(command)
         except ValueError as exc:
             self._send(response(request_id, False, self.machine.state.value, code="INVALID_STATE", message=str(exc), recoverable=True))
             return
         self._send(response(request_id, True, self.machine.state.value, accepted=True))
-        self._start_motion(command, request_id)
+        self._start_motion(command, request_id, target)
 
-    def _start_motion(self, command: str, request_id: str) -> None:
-        if self.active_motion:
-            self._send(response(request_id, False, self.machine.state.value, code="BUSY", message="motion_in_progress"))
-            return
+    def _start_motion(self, command: str, request_id: str, target=None) -> None:
+        # Called under state_lock: a completion and a new request cannot race.
         self.active_motion = True
-        thread = threading.Thread(target=self._run_motion, args=(command, request_id), daemon=True)
-        thread.start()
+        self.stop_requested.clear()
+        self.worker = threading.Thread(target=self._run_motion, args=(command, request_id, target), daemon=True)
+        self.worker.start()
 
-    def _run_motion(self, command: str, request_id: str) -> None:
+    def _run_motion(self, command: str, request_id: str, target=None) -> None:
         with self.motion_lock:
+            failure = None
             try:
-                self.sequence.execute(command)
-                self.machine.complete(command)
-                self._send(self._step_event(command, request_id))
-                if command == "PLACE":
-                    self._send(self._status_event())
+                self.sequence.execute(command, target)
             except Exception as exc:
-                if self.stop_requested.is_set():
+                failure = exc
+            with self.state_lock:
+                self.active_motion = False
+                if self.machine.state == DemoState.FAULT:
+                    self._send(event("FAULT", self.machine.state.value, command, request_id=request_id, error="stop_failed"))
+                elif self.stop_requested.is_set():
                     self.machine.stopped()
                     self._send(event("STOPPED", self.machine.state.value, "STOP", request_id=request_id, reason="stop_requested"))
-                    return
-                LOG.exception("motion failed: %s", command)
-                self.machine.fault()
-                self._send(event("FAULT", self.machine.state.value, command, request_id=request_id, error=str(exc)))
-            finally:
+                elif failure is not None:
+                    LOG.error("motion failed: %s: %s", command, failure)
+                    self.machine.fault()
+                    self._send(event("FAULT", self.machine.state.value, command, request_id=request_id, error=str(failure)))
+                else:
+                    self.machine.complete(command)
+                    self._send(self._step_event(command, request_id))
                 self.stop_requested.clear()
-                self.active_motion = False
 
     def _step_event(self, command: str, request_id: str) -> dict[str, Any]:
         return event("STEP_COMPLETED", self.machine.state.value, command, request_id=request_id, robot_state=self.adapter.status())
 
     def _status_event(self, request_id: str | None = None) -> dict[str, Any]:
-        return event("STATUS", self.machine.state.value, robot_state=self.adapter.status(), request_id=request_id)
+        return event("STATUS", self.machine.state.value, robot_state=self.adapter.status(), request_id=request_id, axis_step_mm=self.config.get("axis_control", {}).get("step_mm", 10))
 
     def _notify(self, name: str, step: str | None) -> None:
         self._send(event(name, self.machine.state.value, step))
@@ -187,6 +219,8 @@ class DemoServer:
                 self.adapter.stop()
             except Exception:
                 LOG.exception("shutdown stop failed")
+        if self.worker is not None:
+            self.worker.join(timeout=self.config["robot"]["timeout_s"] + 1)
         self.adapter.disconnect()
 
 

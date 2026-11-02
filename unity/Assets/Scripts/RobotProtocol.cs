@@ -17,6 +17,7 @@ public class RobotMessage
     public string error;
     public RobotStateInfo robot_state;
     public string timestamp;
+    public float axis_step_mm;
 }
 
 [Serializable]

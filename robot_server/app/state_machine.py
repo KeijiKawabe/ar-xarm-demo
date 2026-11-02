@@ -1,6 +1,9 @@
 from enum import Enum
 
 
+AXIS_COMMANDS = {f"MOVE_{axis}_{sign}" for axis in "XYZ" for sign in ("PLUS", "MINUS")}
+
+
 class DemoState(str, Enum):
     DISCONNECTED = "DISCONNECTED"
     CONNECTED = "CONNECTED"
@@ -8,6 +11,7 @@ class DemoState(str, Enum):
     STARTED = "STARTED"
     PICKING = "PICKING"
     PICKED = "PICKED"
+    MOVING_AXIS = "MOVING_AXIS"
     MOVING_A = "MOVING_A"
     MOVE_A_COMPLETED = "MOVE_A_COMPLETED"
     MOVING_B = "MOVING_B"
@@ -27,10 +31,12 @@ class StateMachine:
         self.state = DemoState.DISCONNECTED
 
     def connect(self) -> None:
-        self.state = DemoState.CONNECTED
+        if self.state == DemoState.DISCONNECTED:
+            self.state = DemoState.CONNECTED
 
     def ready(self) -> None:
-        self.state = DemoState.READY
+        if self.state in (DemoState.CONNECTED, DemoState.DISCONNECTED):
+            self.state = DemoState.READY
 
     def fault(self) -> None:
         self.state = DemoState.FAULT
@@ -39,10 +45,12 @@ class StateMachine:
         self.state = DemoState.STOPPED
 
     def expected(self, command: str) -> bool:
+        if command == "STOP":
+            return self.state != DemoState.DISCONNECTED
         allowed = {
             DemoState.READY: {"START", "RESET", "GET_STATUS"},
             DemoState.STARTED: {"PICK", "STOP", "GET_STATUS"},
-            DemoState.PICKED: {"MOVE_A", "STOP", "GET_STATUS"},
+            DemoState.PICKED: {"MOVE_A", "PLACE", "STOP", "GET_STATUS"} | AXIS_COMMANDS,
             DemoState.MOVE_A_COMPLETED: {"MOVE_B", "STOP", "GET_STATUS"},
             DemoState.MOVE_B_COMPLETED: {"MOVE_C", "STOP", "GET_STATUS"},
             DemoState.MOVE_C_COMPLETED: {"PLACE", "STOP", "GET_STATUS"},
@@ -66,7 +74,7 @@ class StateMachine:
             "RESET": DemoState.RESETTING,
             "STOP": DemoState.STOPPING,
         }
-        self.state = transitions.get(command, self.state)
+        self.state = DemoState.MOVING_AXIS if command in AXIS_COMMANDS else transitions.get(command, self.state)
         return self.state
 
     def complete(self, command: str) -> DemoState:
@@ -80,5 +88,5 @@ class StateMachine:
             "RESET": DemoState.READY,
             "STOP": DemoState.STOPPED,
         }
-        self.state = transitions[command]
+        self.state = DemoState.PICKED if command in AXIS_COMMANDS else transitions[command]
         return self.state

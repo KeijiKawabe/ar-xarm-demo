@@ -1,5 +1,10 @@
 # Unity / Meta Quest セットアップ
 
+現行のUI自動生成とXYZ軸操作の手順は [UI_IMPLEMENTATION.md](UI_IMPLEMENTATION.md) を参照してください。
+`Lab Demo > Create Command Panel`でパネル・左右レーザー・入力設定を生成できます。
+
+以下は旧固定経路UIを手動構築する場合の参考手順です。
+
 ## 1. Unityプロジェクト
 
 Unity 2021 LTS以降の3Dプロジェクトに、`Assets/Scripts/`をコピーします。Quest向けにAndroidビルドを行う場合は、使用するUnityバージョンに対応したXR Plugin ManagementとOpenXRを有効にしてください。

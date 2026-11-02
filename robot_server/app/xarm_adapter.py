@@ -28,6 +28,13 @@ class XArmAdapter:
         if hasattr(self.arm, "set_gripper_enable"):
             self.arm.set_gripper_enable(True)
 
+    def get_pose(self) -> list[float]:
+        assert self.arm is not None
+        code, current = self.arm.get_position(is_radian=self.config["robot"].get("is_radian", False))
+        if code != 0:
+            raise RuntimeError(f"xarm_get_position_failed:{code}")
+        return list(current)
+
     def move_pose(self, pose: list[float], speed: float, acceleration: float, timeout: float) -> None:
         assert self.arm is not None
         code = self.arm.set_position(
