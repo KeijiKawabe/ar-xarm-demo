@@ -37,5 +37,10 @@
     "y_mm": [-350, 350],
     "z_mm": [50, 500],
     "max_speed_mm_s": 100
+  },
+  "axis_control": {
+    "step_mm": 10,
+    "max_step_mm": 25,
+    "speed_mm_s": 30
   }
 }

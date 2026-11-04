@@ -67,6 +67,7 @@
     <Compile Include="Assets\Scripts\RobotTcpClient.cs" />
     <Compile Include="Assets\Scripts\WorldSpacePanelAnchor.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
+    <Compile Include="Assets\Scripts\ControllerTrackingGuard.cs" />
     <Compile Include="Assets\Scripts\DemoCoordinateVisualizer.cs" />
   </ItemGroup>
   <ItemGroup>

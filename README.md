@@ -51,6 +51,9 @@ python -m unittest discover -s tests -v
 
 ## Unity
 
+XYZ正負6方向の操作UIを追加しました。`Lab Demo > Create Command Panel`でシーンに生成します。現在のセットアップと軸移動仕様は [unity/UI_IMPLEMENTATION.md](unity/UI_IMPLEMENTATION.md) を参照してください。旧MOVE_A/B/Cは互換用に残しています。
+
+
 `unity/README.md`に、XR Origin、World Space Canvas、Questのレーザーポインタ、各ボタンの割り当て、AR基準座標の設定手順を記載しています。スクリプトは`unity/Assets/Scripts/`からUnityプロジェクトの`Assets/Scripts/`へコピーしてください。
 
 Unityの標準UIとQuestコントローラのレーザーポインタ入力を組み合わせる想定です。XR入力方式は使用するUnity/XR Pluginのバージョンに応じてシーン側で設定します。
