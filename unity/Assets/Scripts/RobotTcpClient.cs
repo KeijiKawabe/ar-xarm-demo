@@ -23,7 +23,9 @@ public class RobotTcpClient : MonoBehaviour
     bool connecting;
     float heartbeatAt;
 
-    void Start() { if (connectOnStart) Connect(); }
+    bool retryInitialConnection;
+    float nextAttempt;
+    void Start() { retryInitialConnection = connectOnStart; }
     public void Connect()
     {
         if (IsConnected || connecting) return;
@@ -56,6 +58,7 @@ public class RobotTcpClient : MonoBehaviour
                     client = socket; writer = output;
                 }
                 Enqueue(session, () => {
+                    retryInitialConnection = false;
                     connecting = false; IsConnected = true;
                     ConnectionChanged?.Invoke("CONNECTED");
                     Send("HELLO"); heartbeatAt = Time.unscaledTime;
@@ -77,7 +80,7 @@ public class RobotTcpClient : MonoBehaviour
             finally
             {
                 lock (writeLock) { if (session == generation) { writer = null; client = null; } }
-                Enqueue(session, () => { connecting = false; IsConnected = false; ConnectionChanged?.Invoke("DISCONNECTED"); });
+                Enqueue(session, () => { connecting = false; IsConnected = false; nextAttempt = Time.unscaledTime + 3f; ConnectionChanged?.Invoke("DISCONNECTED"); });
             }
         }
     }
@@ -103,11 +106,13 @@ public class RobotTcpClient : MonoBehaviour
     void Update()
     {
         while (callbacks.TryDequeue(out var action)) action();
+        if (retryInitialConnection && !connecting && !IsConnected && Time.unscaledTime >= nextAttempt) Connect();
         if (IsConnected && heartbeatIntervalSeconds > 0 && Time.unscaledTime - heartbeatAt >= heartbeatIntervalSeconds)
         { heartbeatAt = Time.unscaledTime; Send("HEARTBEAT"); }
     }
     public void Disconnect()
     {
+        retryInitialConnection = false;
         Interlocked.Increment(ref generation);
         lock (writeLock) { client?.Close(); client = null; writer = null; }
         connecting = false; IsConnected = false;

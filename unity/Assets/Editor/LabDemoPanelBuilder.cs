@@ -53,7 +53,7 @@ public static class LabDemoPanelBuilder
         var ui = root.AddComponent<CommandPanelUI>();
         ui.controller = controller;
         Label(root.transform, "XARM / COMMAND PANEL", 310, 32);
-        ui.connectionText = Label(root.transform, "LINK: DISCONNECTED", 270, 20);
+        ui.connectionText = Label(root.transform, "ROBOT SERVER: DISCONNECTED", 270, 20);
         ui.stateText = Label(root.transform, "STATE: DISCONNECTED", 235, 24);
         ui.stepText = Label(root.transform, "STEP:", 200, 24);
         ui.errorText = Label(root.transform, "", -290, 20);

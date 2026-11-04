@@ -34,7 +34,7 @@ public class CommandPanelUI : MonoBehaviour
         if (stateText != null) stateText.text = "STATE: " + state;
         if (stepText != null && controller != null) stepText.text = "STEP: " + controller.lastStep;
         if (errorText != null && controller != null) errorText.text = controller.lastError;
-        if (connectionText != null && controller != null) connectionText.text = "LINK: " + controller.connectionStatus;
+        if (connectionText != null && controller != null) connectionText.text = "ROBOT SERVER: " + controller.connectionStatus;
         if (axisStepText != null && controller != null) axisStepText.text = controller.axisStepMm > 0 ? "BASE XYZ / " + controller.axisStepMm.ToString("0.##") + " mm per click" : "BASE XYZ / waiting for server";
         Set(xPlusButton, "MOVE_X_PLUS"); Set(xMinusButton, "MOVE_X_MINUS");
         Set(yPlusButton, "MOVE_Y_PLUS"); Set(yMinusButton, "MOVE_Y_MINUS");
